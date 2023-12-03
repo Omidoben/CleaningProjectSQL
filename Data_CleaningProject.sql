@@ -192,8 +192,27 @@ WHERE (parcelid, saledate, saleprice, legalreference, property_address, rn) IN (
     WHERE rn > 1
 );
 
+-- 6) Split date column into year, month, and date column
+--    Add the year column
 
--- 6) Delete unused columns
+ALTER TABLE nashville_housing ADD COLUMN year varchar(4);
+
+UPDATE nashville_housing
+SET year = TO_CHAR(date_standard, 'yyyy');
+
+--add month column
+ALTER TABLE nashville_housing ADD COLUMN month varchar(3);
+
+UPDATE nashville_housing
+SET month = TO_CHAR(date_standard, 'Mon');
+
+--add day column
+ALTER TABLE nashville_housing ADD COLUMN day varchar(3);
+
+UPDATE nashville_housing
+SET day = TO_CHAR(date_standard, 'Dy');
+
+-- 7) Delete unused columns
 
 ALTER TABLE nashville_housing
 DROP COLUMN saledate,
