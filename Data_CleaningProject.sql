@@ -161,7 +161,7 @@ SET soldasvacant = CASE WHEN soldasvacant = 'Y' THEN 'Yes'
 	   END;	
 	
 
--- 5) Remove duplicates
+-- 6) Remove duplicates
 --First check whether there are duplicates using parcelid, saledate, saleprice, legalreference, property address
 --use row_number() and a CTE
 
@@ -192,7 +192,7 @@ WHERE (parcelid, saledate, saleprice, legalreference, property_address, rn) IN (
     WHERE rn > 1
 );
 
--- 6) Split date column into year, month, and date column
+-- 7) Split date column into year, month, and date column
 --    Add the year column
 
 ALTER TABLE nashville_housing ADD COLUMN year varchar(4);
@@ -212,7 +212,47 @@ ALTER TABLE nashville_housing ADD COLUMN day varchar(3);
 UPDATE nashville_housing
 SET day = TO_CHAR(date_standard, 'Dy');
 
--- 7) Delete unused columns
+-- 8) replace null values in owneraddress column with 'Unknown'
+UPDATE nashville_housing
+SET ownername = COALESCE(ownername, 'Unknown');
+
+
+-- 9) Calculate the min, lower quartile, median, upper quartile, and max from the acreage column
+SELECT MAX(acreage) AS max_acreage,
+	MIN(acreage) AS min_acreage,
+	PERCENTILE_CONT(.25) WITHIN GROUP (ORDER BY acreage) AS lower_quartile,
+	PERCENTILE_CONT(.5) WITHIN GROUP (ORDER BY acreage) AS median_acreage,
+	PERCENTILE_CONT(.75) WITHIN GROUP (ORDER BY acreage) AS upper_quartile
+FROM nashville_housing;
+
+/*To replace null values in acreage column, use the median since average may skew 
+the results(max acreage = 160.06, min acreage = 0.01, while median = 0.27) */
+
+UPDATE nashville_housing
+SET acreage = COALESCE(acreage, (SELECT PERCENTILE_CONT(.5) WITHIN GROUP (ORDER BY acreage)
+								  FROM nashville_housing
+								  WHERE acreage IS NOT NULL));
+
+
+--Replace missing values in landvalue with the median
+UPDATE nashville_housing
+SET landvalue = COALESCE(landvalue, (SELECT PERCENTILE_CONT(.5) WITHIN GROUP (ORDER BY landvalue)
+								  FROM nashville_housing
+								  WHERE landvalue IS NOT NULL));
+
+--Replace na's in building value with median
+UPDATE nashville_housing
+SET buildingvalue = COALESCE(buildingvalue, (SELECT PERCENTILE_CONT(.5) WITHIN GROUP (ORDER BY buildingvalue)
+												FROM nashville_housing
+												WHERE buildingvalue IS NOT NULL));
+
+
+--Substitute null values in totalvalue column with the sum of landvalue and building value
+
+UPDATE nashville_housing
+SET totalvalue = COALESCE(totalvalue, landvalue + buildingvalue);
+
+-- 10) Delete unused columns
 
 ALTER TABLE nashville_housing
 DROP COLUMN saledate,
